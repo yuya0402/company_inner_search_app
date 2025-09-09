@@ -1,0 +1,67 @@
+Collecting langchain-openai==0.2.*
+  Downloading langchain_openai-0.2.14-py3-none-any.whl.metadata (2.7 kB)
+Collecting langchain==0.2.*
+  Using cached langchain-0.2.17-py3-none-any.whl.metadata (7.1 kB)
+Collecting langchain-community==0.2.*
+  Using cached langchain_community-0.2.19-py3-none-any.whl.metadata (2.7 kB)
+Collecting langchain-core==0.2.*
+  Using cached langchain_core-0.2.43-py3-none-any.whl.metadata (6.2 kB)
+Collecting openai
+  Using cached openai-1.107.0-py3-none-any.whl.metadata (29 kB)
+Collecting tiktoken
+  Using cached tiktoken-0.11.0-cp311-cp311-macosx_11_0_arm64.whl.metadata (6.7 kB)
+INFO: pip is looking at multiple versions of langchain-openai to determine which version is compatible with other requirements. This could take a while.
+Collecting langchain-openai==0.2.*
+  Downloading langchain_openai-0.2.13-py3-none-any.whl.metadata (2.7 kB)
+  Downloading langchain_openai-0.2.12-py3-none-any.whl.metadata (2.7 kB)
+  Downloading langchain_openai-0.2.11-py3-none-any.whl.metadata (2.7 kB)
+  Downloading langchain_openai-0.2.10-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.9-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.8-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.7-py3-none-any.whl.metadata (2.6 kB)
+INFO: pip is still looking at multiple versions of langchain-openai to determine which version is compatible with other requirements. This could take a while.
+  Downloading langchain_openai-0.2.6-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.5-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.4-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.3-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.2-py3-none-any.whl.metadata (2.6 kB)
+INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+  Downloading langchain_openai-0.2.1-py3-none-any.whl.metadata (2.6 kB)
+  Downloading langchain_openai-0.2.0-py3-none-any.whl.metadata (2.6 kB)
+
+The conflict is caused by:
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.14 depends on langchain-core<0.4.0 and >=0.3.27
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.13 depends on langchain-core<0.4.0 and >=0.3.27
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.12 depends on langchain-core<0.4.0 and >=0.3.21
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.11 depends on langchain-core<0.4.0 and >=0.3.21
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.10 depends on langchain-core<0.4.0 and >=0.3.21
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.9 depends on langchain-core<0.4.0 and >=0.3.17
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.8 depends on langchain-core<0.4.0 and >=0.3.17
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.7 depends on langchain-core<0.4.0 and >=0.3.16
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.6 depends on langchain-core<0.4.0 and >=0.3.15
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.5 depends on langchain-core<0.4.0 and >=0.3.15
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.4 depends on langchain-core<0.4.0 and >=0.3.13
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.3 depends on langchain-core<0.4.0 and >=0.3.12
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.2 depends on langchain-core<0.4.0 and >=0.3.9
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.1 depends on langchain-core<0.4 and >=0.3
+    The user requested langchain-core==0.2.*
+    langchain-openai 0.2.0 depends on langchain-core<0.4 and >=0.3
+
+To fix this you could try to:
+1. loosen the range of package versions you've specified
+2. remove package versions to allow pip attempt to solve the dependency conflict
+
