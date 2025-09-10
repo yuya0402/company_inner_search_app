@@ -67,63 +67,20 @@ os.environ.setdefault("OPENAI_NO_TELEMETRY", "1")
 
 
 ############################################################
-# Embeddings: OpenAIをrequestsで直叩き（長文は自動分割→平均化）
+# Embeddings: OpenAIをrequestsで直叩き
 ############################################################
 def _ascii_only(s: str) -> str:
     return "".join(ch for ch in s if ch in string.printable)
 
 
-def _split_by_limit(text: str, max_chars: int) -> List[str]:
-    """max_chars を超える長文を適当に段落/行単位で分割して返す"""
-    if len(text) <= max_chars:
-        return [text]
-    parts: List[str] = []
-    current: List[str] = []
-    current_len = 0
-
-    for block in text.split("\n"):
-        blk = block + "\n"
-        if current_len + len(blk) > max_chars and current:
-            parts.append("".join(current))
-            current = [blk]
-            current_len = len(blk)
-        else:
-            current.append(blk)
-            current_len += len(blk)
-    if current:
-        parts.append("".join(current))
-    return parts
-
-
-def _avg(vectors: List[List[float]]) -> List[float]:
-    n = len(vectors)
-    if n == 0:
-        return []
-    dim = len(vectors[0])
-    out = [0.0] * dim
-    for vec in vectors:
-        for i in range(dim):
-            out[i] += vec[i]
-    return [x / n for x in out]
-
-
 class SafeOpenAIEmbeddings(Embeddings):
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "text-embedding-3-small",
-        base_url: str = "https://api.openai.com/v1",
-        max_input_chars: int = 12000,   # だいたいの安全長（UTF-8文字数ベース）
-        batch_size: int = 64,           # まとめて投げる数
-    ):
+    def __init__(self, api_key: str, model: str = "text-embedding-3-small",
+                 base_url: str = "https://api.openai.com/v1"):
         if not api_key:
             raise ValueError("OPENAI_API_KEY が見つかりません。`.env` に設定してください。")
         self.api_key = api_key
         self.model = model
         self.base_url = base_url.rstrip("/")
-        self.max_input_chars = max_input_chars
-        self.batch_size = batch_size
-
         sess = requests.Session()
         sess.trust_env = False
         sess.headers.update({
@@ -141,40 +98,19 @@ class SafeOpenAIEmbeddings(Embeddings):
         resp.raise_for_status()
         return resp.json()
 
-    def _embed_list(self, texts: List[str]) -> List[List[float]]:
-        """OpenAI embeddingsに texts をバッチで投げ、埋め込みを返す"""
-        url = f"{self.base_url}/embeddings"
-        out: List[List[float]] = []
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i:i + self.batch_size]
-            data = self._post_json(url, {"model": self.model, "input": batch}, timeout=120)
-            out.extend([item["embedding"] for item in data["data"]])
-        return out
-
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # 各テキストが長すぎる場合は分割して平均ベクトルを返す
-        outputs: List[List[float]] = []
-        for t in texts:
-            parts = _split_by_limit(t, self.max_input_chars)
-            if len(parts) == 1:
-                outputs.extend(self._embed_list([t]))
-            else:
-                vecs = self._embed_list(parts)
-                outputs.append(_avg(vecs))
-        return outputs
+        url = f"{self.base_url}/embeddings"
+        data = self._post_json(url, {"model": self.model, "input": texts}, timeout=120)
+        return [item["embedding"] for item in data["data"]]
 
     def embed_query(self, text: str) -> List[float]:
         return self.embed_documents([text])[0]
 
 
 ############################################################
-# CSV（社員名簿）を「部署別ドキュメントだけ」作るローダー
+# CSV（社員名簿）を1ドキュメントに統合する専用ローダー
 ############################################################
 def load_employee_csv_merged(path: str) -> List[Document]:
-    """
-    社員名簿（CSV）を「部署別ドキュメントのみ」で返す。
-    （全社まとめドキュメントは作らない＝長文でのAPIエラーを避ける）
-    """
     logger = logging.getLogger(ct.LOGGER_NAME)
 
     enc_candidates = ["utf-8-sig", "utf-8", "cp932"]
@@ -191,8 +127,8 @@ def load_employee_csv_merged(path: str) -> List[Document]:
     if rows is None:
         raise RuntimeError(f"社員名簿CSV読み込み失敗: {path}")
 
-    # 画面には出さず、ログにのみ残す
-    logger.debug(f"社員名簿CSV 読み込み成功: {os.path.basename(path)} / encoding={used_enc} / 総行数={len(rows)}")
+    # 画面には出さず、ログに残す
+    logger.info(f"DEBUG 社員名簿CSV 読み込み成功: {os.path.basename(path)} / encoding={used_enc} / 総行数={len(rows)}")
 
     DEPT_KEYS = ["所属部署", "部署", "部署名", "部門", "部門名"]
 
@@ -202,49 +138,35 @@ def load_employee_csv_merged(path: str) -> List[Document]:
                 return d[k]
         return ""
 
-    # 部署ごとにグルーピング
     bucket = defaultdict(list)
     for r in rows:
         dept = pick(r, DEPT_KEYS) or "（部署未設定）"
         bucket[dept].append(r)
 
     for dept, people in bucket.items():
-        logger.debug(f"部署: {dept} / {len(people)}名（部署ドキュメント作成）")
+        logger.info(f"DEBUG 部署: {dept} / {len(people)}名")
 
-    docs: List[Document] = []
-
-    # 部署別ドキュメントのみ生成（＝短く、1ヒットで複数人を返せる）
+    lines = [f"社員名簿（統合ドキュメント）: {os.path.basename(path)}"]
     for dept, people in bucket.items():
-        lines_dept = [f"社員名簿（部署別）: {dept}（{len(people)}名）"]
+        lines.append(f"\n## 部署: {dept}（{len(people)}名）")
         for p in people:
             cols = [
-                ("所属部署", dept),
                 ("社員ID", p.get("社員ID") or p.get("ID") or p.get("EmployeeID")),
-                ("氏名", p.get("氏名") or p.get("氏名（フルネーム）") or p.get("名前")),
+                ("氏名", p.get("氏名") or p.get("名前")),
                 ("性別", p.get("性別")),
                 ("メール", p.get("メールアドレス") or p.get("Email")),
-                ("役職", p.get("役職") or p.get("役割")),
+                ("役職", p.get("役職")),
                 ("入社日", p.get("入社日")),
                 ("保有資格", p.get("保有資格")),
-                ("スキル", p.get("スキルセット") or p.get("スキル")),
-                ("学部", p.get("学部・学科") or p.get("学部") or p.get("学科")),
-                ("卒業年月日", p.get("卒業年月日")),
+                ("スキル", p.get("スキル")),
             ]
             line = " / ".join([f"{k}:{v}" for k, v in cols if v])
-            lines_dept.append(f"- {line}")
-        text_dept = "\n".join(lines_dept)
-        docs.append(
-            Document(
-                page_content=text_dept,
-                metadata={
-                    "source": path,                 # 元ファイルは社員名簿.csv
-                    "department": dept,             # 部署名でクエリヒットを強化
-                    "doc_kind": "employee_master_by_dept",
-                },
-            )
-        )
+            if dept and dept != "（部署未設定）":
+                line = f"所属部署:{dept} / " + line
+            lines.append(f"- {line}")
 
-    return docs
+    text = "\n".join(lines)
+    return [Document(page_content=text, metadata={"source": path})]
 
 
 ############################################################
@@ -264,17 +186,14 @@ def initialize_logger():
         return
     log_handler = TimedRotatingFileHandler(
         os.path.join(ct.LOG_DIR_PATH, ct.LOG_FILE),
-        when="D",
-        encoding="utf8"
+        when="D", encoding="utf8"
     )
     formatter = logging.Formatter(
         f"[%(levelname)s] %(asctime)s line %(lineno)s, in %(funcName)s, "
         f"session_id={st.session_state.session_id}: %(message)s"
     )
     log_handler.setFormatter(formatter)
-    # ★ DEBUGも記録する
-    logger.setLevel(logging.DEBUG)
-    log_handler.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(log_handler)
 
 
@@ -284,44 +203,34 @@ def initialize_session_id():
 
 
 def initialize_retriever():
+    logger = logging.getLogger(ct.LOGGER_NAME)
+
     if "retriever" in st.session_state:
         return
 
-    logger = logging.getLogger(ct.LOGGER_NAME)
-
     docs_all = load_data_sources()
-    logger.debug(f"読み込んだドキュメント数: {len(docs_all)}")
+    # 画面表示のデバッグは出さない（ログのみ）
+    logger.info(f"DEBUG 読み込んだドキュメント数: {len(docs_all)}")
     for i, d in enumerate(docs_all[:5]):
-        logger.debug(f"doc[{i}].source = {d.metadata.get('source')}")
+        logger.info(f"DEBUG doc[{i}].source = {d.metadata.get('source')}")
 
-    # 文字列調整
     for doc in docs_all:
         doc.page_content = adjust_string(doc.page_content)
         for key in doc.metadata:
             doc.metadata[key] = adjust_string(doc.metadata[key])
 
-    # Embeddings クライアント（長文は自動分割&平均）
     _scrub_env_for_headers()
     api_key = os.getenv("OPENAI_API_KEY", "")
     embeddings = SafeOpenAIEmbeddings(
-        api_key=api_key,
-        model="text-embedding-3-small",
-        base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        max_input_chars=12000,
-        batch_size=64,
+        api_key=api_key, model="text-embedding-3-small",
+        base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     )
 
-    # === 条件付きチャンク分割（社員名簿の部署別Docは分割しない） ===
     text_splitter = CharacterTextSplitter(
-        chunk_size=ct.CHUNK_SIZE, chunk_overlap=ct.CHUNK_OVERLAP, separator="\n",
+        chunk_size=ct.CHUNK_SIZE, chunk_overlap=ct.CHUNK_OVERLAP,
+        separator="\n",
     )
-    splitted_docs: List[Document] = []
-    for d in docs_all:
-        kind = d.metadata.get("doc_kind")
-        if kind == "employee_master_by_dept":
-            splitted_docs.append(d)  # 部署別は1ドキュメントで保持
-        else:
-            splitted_docs.extend(text_splitter.split_documents([d]))
+    splitted_docs = text_splitter.split_documents(docs_all)
 
     db = Chroma.from_documents(splitted_docs, embedding=embeddings)
     st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RETRIEVER_TOP_K})
@@ -357,12 +266,10 @@ def recursive_file_check(path, docs_all):
 def file_load(path, docs_all):
     file_extension = os.path.splitext(path)[1]
     file_name = os.path.basename(path)
-    # ★ 社員名簿.csv だけ特別処理（部署別Docのみを生成）
     if file_extension == ".csv" and file_name == "社員名簿.csv":
         docs = load_employee_csv_merged(path)
         docs_all.extend(docs)
         return
-    # それ以外は定義済みローダー
     if file_extension in ct.SUPPORTED_EXTENSIONS:
         loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
         docs = loader.load()
