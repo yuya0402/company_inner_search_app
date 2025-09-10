@@ -51,7 +51,7 @@ for p in ["uploads", "outputs", "tmp", "logs"]:
 
 
 ############################################################
-# 3. 画面の基本設定 & ちょいCSS（画像のような見た目）
+# 3. 画面の基本設定 & CSS
 ############################################################
 st.set_page_config(page_title=ct.APP_NAME, page_icon=":mag:", layout="wide")
 st.markdown(
@@ -61,8 +61,8 @@ st.markdown(
       .center-title h1 { text-align: center; margin-top: .2rem; }
       /* サイドのカード風 */
       .sidecard { background: #eef2ff; padding: 12px 14px; border-radius: 12px; margin: 10px 0; }
-      /* 本文の横幅をやや絞る */
-      .main-narrow { max-width: 980px; margin: 0 auto; }
+      /* 本文の横幅をやや絞る（全体に適用） */
+      .block-container { max-width: 980px; margin: 0 auto; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -70,13 +70,12 @@ st.markdown(
 
 
 ############################################################
-# 4. ホーム画面を描画（画像に近いUI）
+# 4. ホーム画面を描画
 ############################################################
 def render_home() -> str:
     # ---- 左サイド ----
     with st.sidebar:
         st.markdown("### 利用目的")
-        # 利用モードの選択（社内文書検索 / 社内問い合わせ）
         mode = st.radio(
             label="",
             options=[ct.ANSWER_MODE_1, ct.ANSWER_MODE_2],
@@ -84,44 +83,23 @@ def render_home() -> str:
         )
         st.session_state.mode = mode  # 後続で使う
 
-        # 画像のような説明カード
-        st.markdown(
-            '<div class="sidecard"><b>「社内文書検索」</b> を選択した場合</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="sidecard">入力内容と関連性が高い社内文書のありかを検索できます。</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="sidecard"><b>【入力例】</b><br>社員の育成方針に関するMTGの議事録</div>',
-            unsafe_allow_html=True,
-        )
+        # 利用説明カード
+        st.markdown('<div class="sidecard"><b>「社内文書検索」</b> を選択した場合</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidecard">入力内容と関連性が高い社内文書のありかを検索できます。</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidecard"><b>【入力例】</b><br>社員の育成方針に関するMTGの議事録</div>', unsafe_allow_html=True)
 
-        st.markdown(
-            '<div class="sidecard"><b>「社内問い合わせ」</b> を選択した場合</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="sidecard">質問・要望に対して、社内文書の情報をもとに回答します。</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="sidecard"><b>【入力例】</b><br>人事部に所属している従業員情報を一覧化して</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="sidecard"><b>「社内問い合わせ」</b> を選択した場合</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidecard">質問・要望に対して、社内文書の情報をもとに回答します。</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidecard"><b>【入力例】</b><br>人事部に所属している従業員情報を一覧化して</div>', unsafe_allow_html=True)
 
     # ---- メイン（中央） ----
     st.markdown(f"<div class='center-title'><h1>{ct.APP_NAME}</h1></div>", unsafe_allow_html=True)
-    st.markdown("<div class='main-narrow'>", unsafe_allow_html=True)
 
     st.info(
         "こんにちは。私は社内文書の情報をもとに回答する生成AIチャットボットです。"
         "サイドバーで利用目的を選び、画面下部のチャット欄からメッセージを送信してください。"
     )
     st.warning("具体的に入力したほうが期待通りの回答を得やすいです。")
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     # 下部のチャット入力
     return st.chat_input(placeholder=ct.CHAT_INPUT_HELPER_TEXT)
@@ -149,9 +127,9 @@ if "initialized" not in st.session_state:
 ############################################################
 # 6. 画面描画 & 入力受付
 ############################################################
-user_text = render_home()  # 画像のようなホーム画面を描画し、入力を受け取る
+user_text = render_home()  # ホーム画面を描画し、入力を受け取る
 
-# 過去ログの表示（既存のコンポーネントを流用）
+# 過去ログの表示
 try:
     cn.display_conversation_log()
 except Exception as e:
@@ -177,7 +155,7 @@ if user_text:
             st.code(traceback.format_exc())
             st.stop()
 
-    # 7-3. 回答表示（モード別に表示用コンポーネントを使う）
+    # 7-3. 回答表示
     with st.chat_message("assistant"):
         try:
             if st.session_state.mode == ct.ANSWER_MODE_1:
