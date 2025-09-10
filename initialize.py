@@ -17,13 +17,14 @@ import json
 import requests
 import csv
 from collections import defaultdict
+from pathlib import Path
 
 from dotenv import load_dotenv, find_dotenv
 import streamlit as st
 # Webページ読み込み（使わないなら WEB_URL_LOAD_TARGETS を空に）
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import FAISS   # ★ Chroma → FAISS
 from langchain_core.embeddings import Embeddings
 from langchain_core.documents import Document
 
@@ -209,7 +210,6 @@ def initialize_retriever():
         return
 
     docs_all = load_data_sources()
-    # 画面表示のデバッグは出さない（ログのみ）
     logger.info(f"DEBUG 読み込んだドキュメント数: {len(docs_all)}")
     for i, d in enumerate(docs_all[:5]):
         logger.info(f"DEBUG doc[{i}].source = {d.metadata.get('source')}")
@@ -232,7 +232,20 @@ def initialize_retriever():
     )
     splitted_docs = text_splitter.split_documents(docs_all)
 
-    db = Chroma.from_documents(splitted_docs, embedding=embeddings)
+    # ★ Chroma → FAISS に変更
+    persist_dir = Path("./data/faiss_index")
+    persist_dir.mkdir(parents=True, exist_ok=True)
+
+    if (persist_dir / "index.faiss").exists() and (persist_dir / "store.pkl").exists():
+        db = FAISS.load_local(
+            folder_path=str(persist_dir),
+            embeddings=embeddings,
+            allow_dangerous_deserialization=True
+        )
+    else:
+        db = FAISS.from_documents(splitted_docs, embedding=embeddings)
+        db.save_local(str(persist_dir))
+
     st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RETRIEVER_TOP_K})
 
 
