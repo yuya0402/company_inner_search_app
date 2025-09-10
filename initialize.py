@@ -128,7 +128,6 @@ def load_employee_csv_merged(path: str) -> List[Document]:
     if rows is None:
         raise RuntimeError(f"社員名簿CSV読み込み失敗: {path}")
 
-    # 画面には出さず、ログに残す
     logger.info(f"DEBUG 社員名簿CSV 読み込み成功: {os.path.basename(path)} / encoding={used_enc} / 総行数={len(rows)}")
 
     DEPT_KEYS = ["所属部署", "部署", "部署名", "部門", "部門名"]
@@ -232,7 +231,7 @@ def initialize_retriever():
     )
     splitted_docs = text_splitter.split_documents(docs_all)
 
-    # ★ Chroma → FAISS に変更
+    # ★ FAISS に変更（永続化あり）
     persist_dir = Path("./data/faiss_index")
     persist_dir.mkdir(parents=True, exist_ok=True)
 
